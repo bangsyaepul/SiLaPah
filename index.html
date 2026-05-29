@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a3d2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SiLaPah — Sistem Pelaporan Sampah Liar</title>
+
+  <!-- Leaflet Maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  GLOBAL OVERLAYS                                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="bg-pattern"></div>
+
+<!-- Toast -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Memproses...</div>
+</div>
+
+<!-- ─── NOTIFICATION PANEL ─── -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    <span class="notif-panel-title">🔔 Notifikasi</span>
+    <button class="notif-clear-btn" onclick="AppUtils.clearAllNotifs()">Hapus Semua</button>
+  </div>
+  <div class="notif-list" id="notif-list">
+    <div class="empty-state"><div class="empty-icon">🔔</div><p class="empty-desc">Belum ada notifikasi</p></div>
+  </div>
+</div>
+
+<!-- ─── MODAL: OTP ─── -->
+<div class="modal-overlay" id="modal-otp">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🔐 Verifikasi OTP</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('modal-otp')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;line-height:1.5">
+        Kode OTP 6 digit telah dikirim ke WhatsApp Admin. Masukkan kode untuk melanjutkan pendaftaran.
+      </p>
+      <div class="otp-inputs">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);text-align:center">
+        Kode berlaku selama 10 menit
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-full" onclick="handleResendOTP()">Kirim Ulang OTP</button>
+      <button class="btn btn-primary btn-full" onclick="AppUtils.handleOTPVerify()">Verifikasi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL: Officer Report Detail ─── -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Detail Laporan</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('detail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <img id="detail-img"
+onclick="openImageViewer(this.src)"
+style="width:100%;border-radius:12px;margin-bottom:14px;display:none;max-height:200px;object-fit:cover;cursor:pointer"
+alt="Foto sampah">
+      <div class="detail-box">
+  <label class="detail-label">📍 Lokasi</label>
+  <div id="detail-location" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">👤 Pelapor</label>
+  <div id="detail-reporter" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">🕐 Waktu</label>
+  <div id="detail-time" class="detail-value"></div>
+</div>
+<div class="detail-box">
+  <label class="detail-label">🗂️ Kategori Sampah</label>
+  <div id="detail-category" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">📝 Deskripsi</label>
+  <div id="detail-desc" class="detail-value detail-desc"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">🔄 Ubah Status</label>
+
+  <select class="form-input" id="detail-status">
+    <option value="pending">⏳ Belum Dibersihkan</option>
+    <option value="progress">🚛 Sedang Dibersihkan</option>
+    <option value="done">✅ Selesai</option>
+  </select>
+</div>
+    </div>
+    <div class="modal-footer" style="flex-direction:column;gap:8px">
+      <button id="btn-navigate" class="btn btn-accent btn-full" style="display:none">
+        Mulai Navigasi ke Lokasi
+      </button>
+      <button class="btn btn-primary btn-full" onclick="saveReportStatus()">
+        Simpan Status
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL: User Report Detail ─── -->
+<div class="modal-overlay" id="user-detail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Status Laporan</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('user-detail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <img id="detail-img"
+onclick="openImageViewer(this.src)"
+style="width:100%;border-radius:12px;margin-bottom:14px;display:none;max-height:200px;object-fit:cover;cursor:pointer"
+alt="Foto sampah">
+      <div class="detail-box-list">
+        <div class="detail-box status-box">
+  <div class="detail-label">STATUS</div>
+  <div id="user-detail-status" class="detail-status-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">📍 Lokasi</label>
+  <div id="user-detail-location" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">👮 Petugas</label>
+  <div id="user-detail-officer" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">🕐 Dilaporkan</label>
+  <div id="user-detail-time" class="detail-value"></div>
+</div>
+<div class="detail-box">
+  <label class="detail-label">🗂️ Kategori Sampah</label>
+  <div id="detail-category" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">📝 Deskripsi</label>
+  <div id="user-detail-desc" class="detail-value detail-desc"></div>
+</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="user-detail-map-btn" class="btn btn-outline btn-full" style="display:none">
+        Lihat di Peta
+      </button>
+      <button class="btn btn-primary btn-full" onclick="AppUtils.closeModal('user-detail-modal')">
+        Tutup
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: HOME (Pilih Peran)                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page active" id="page-home" style="overflow-y:auto">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;min-height:100vh">
+
+    <!-- Hero -->
+    <div style="text-align:center;margin-bottom:40px">
+      <div style="width:90px;height:90px;background:linear-gradient(135deg,var(--green-mid),var(--green-light));border-radius:28px;display:flex;align-items:center;justify-content:center;font-size:44px;margin:0 auto 20px;box-shadow:0 12px 40px rgba(78,203,141,0.35)">🗑️</div>
+      <h1 style="font-size:30px;font-weight:800;margin-bottom:8px">SiLaPah</h1>
+      <p style="color:var(--text-muted);font-size:15px;line-height:1.5">Sistem Pelaporan Sampah Liar<br></p>
+    </div>
+
+    <!-- Role Selection -->
+    <div style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px">
+
+      <div class="card" onclick="showPage('page-officer-login')" style="cursor:pointer;padding:20px;transition:var(--transition)" onmouseover="this.style.borderColor='var(--green-mid)'" onmouseout="this.style.borderColor=''">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:52px;height:52px;background:linear-gradient(135deg,#1a5c3e,var(--green-mid));border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">👷</div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:3px">Masuk sebagai Petugas</div>
+            <div style="font-size:12px;color:var(--text-muted)">Login akun petugas kebersihan</div>
+          </div>
+          <div style="margin-left:auto;color:var(--text-muted);font-size:20px">›</div>
+        </div>
+      </div>
+
+      <div class="card" onclick="openReportDirect()" style="cursor:pointer;padding:20px;transition:var(--transition)" onmouseover="this.style.borderColor='var(--green-mid)'" onmouseout="this.style.borderColor=''">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:52px;height:52px;background:linear-gradient(135deg,#1a3d5c,#2d6ea8);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">👤</div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:3px">Masuk sebagai Warga</div>
+            <div style="font-size:12px;color:var(--text-muted)">Laporkan sampah di lingkungan Anda</div>
+          </div>
+          <div style="margin-left:auto;color:var(--text-muted);font-size:20px">›</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats teaser -->
+    <div style="margin-top:36px;text-align:center">
+      <p style="font-size:12px;color:var(--text-muted)">Bersama menjaga kebersihan lingkungan</p>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER LOGIN                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-login" style="overflow-y:auto">
+  <div class="auth-page">
+    <button onclick="AppUtils.showPage('page-home')" style="position:absolute;top:16px;left:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+
+    <div class="auth-logo">👷</div>
+    <h1 class="auth-title">Login Petugas</h1>
+    <p class="auth-subtitle">Masuk untuk mengelola laporan sampah</p>
+
+    <form class="auth-form" onsubmit="AppUtils.handleOfficerLogin(event)">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="login-username" type="text" placeholder="Masukkan username" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div style="position:relative">
+          <input class="form-input" id="login-password" type="password" placeholder="Masukkan password" autocomplete="current-password" required style="padding-right:48px">
+          <button type="button" onclick="togglePassVis('login-password',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted)">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit">Masuk</button>
+
+      <div class="auth-divider">atau</div>
+
+      <button type="button" class="btn btn-outline btn-full" onclick="AppUtils.showPage('page-officer-register')">
+        Daftar Akun Petugas Baru
+      </button>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER REGISTER                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-register" style="overflow-y:auto">
+  <div class="auth-page">
+    <button onclick="AppUtils.showPage('page-officer-login')" style="position:absolute;top:16px;left:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+
+    <div class="auth-logo">📋</div>
+    <h1 class="auth-title">Daftar Petugas</h1>
+    <p class="auth-subtitle">OTP akan dikirim ke WhatsApp Admin untuk verifikasi</p>
+
+    <form class="auth-form" onsubmit="AppUtils.handleOfficerRegister(event)">
+      <div class="form-group">
+        <label class="form-label">Nama Lengkap</label>
+        <input class="form-input" id="reg-name" type="text" placeholder="Nama petugas" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="reg-username" type="text" placeholder="Buat username unik" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="reg-password" type="password" placeholder="Minimal 6 karakter" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Konfirmasi Password</label>
+        <input class="form-input" id="reg-confirm-password" type="password" placeholder="Ulangi password" required>
+      </div>
+      <div class="form-group">
+  <label class="form-label">Kategori Tugas</label>
+
+  <select class="form-input" id="officer-category" required>
+
+    <option value="">Pilih kategori tugas</option>
+
+    <option value="Sampah Rumah Tangga">
+      🏠 Sampah Rumah Tangga
+    </option>
+
+    <option value="Sampah Plastik">
+      🧴 Sampah Plastik
+    </option>
+
+    <option value="Sampah Organik">
+      🍂 Sampah Organik
+    </option>
+
+    <option value="Sampah Elektronik">
+      💻 Sampah Elektronik
+    </option>
+
+    <option value="Sampah Bangunan">
+      🧱 Sampah Bangunan
+    </option>
+
+    <option value="Sampah Berbahaya">
+      ☣️ Sampah Berbahaya
+    </option>
+
+  </select>
+</div>
+
+      <div class="card" style="background:rgba(240,192,48,0.08);border-color:rgba(240,192,48,0.3);padding:12px">
+        <p style="font-size:12px;color:var(--accent);line-height:1.5">
+          ⚠️ Kode OTP akan dikirim ke nomor WhatsApp Admin yang terdaftar, bukan ke nomor Anda. Hanya staf resmi yang dapat mendaftar.
+        </p>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit">Kirim OTP & Daftar</button>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER DASHBOARD                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-dashboard">
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <div class="nav-brand">
+      <div class="nav-brand-icon">🗑️</div>
+      SiLaPah
+    </div>
+    <div class="nav-actions">
+      <button class="notif-btn" onclick="toggleTheme()" id="themeToggleBtn">
+  🌙
+</button>
+      <div class="notif-btn" onclick="AppUtils.toggleNotifPanel()">
+        🔔
+        <span class="notif-badge" id="notif-badge"></span>
+      </div>
+      <button onclick="AppUtils.logout()" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text-muted);cursor:pointer;font-size:12px;font-family:var(--font-body)">Keluar</button>
+    </div>
+  </div>
+
+  <!-- Scroll Content -->
+  <div class="scroll-area" style="flex:1">
+
+    <!-- Welcome -->
+    <div style="padding:16px 16px 8px">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Selamat bertugas,</p>
+      <h2 id="officer-name-display" style="font-size:22px;font-weight:800">Petugas</h2>
+    </div>
+
+<!-- Stats -->
+<div class="stats-grid">
+
+  <div class="stat-card">
+    <div class="stat-number" id="stat-total">0</div>
+    <div class="stat-label">Total Laporan</div>
+  </div>
+
+ <div class="stat-card">
+  <div class="stat-number" id="stat-pending">0</div>
+  <div class="stat-label">Belum Diproses</div>
+</div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="stat-progress">0</div>
+    <div class="stat-label">Diproses</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="stat-done">0</div>
+    <div class="stat-label">Selesai</div>
+  </div>
+
+</div>
+
+    <!-- Tab Switcher -->
+    <div class="tab-switcher">
+      <button class="tab-btn active" data-tab="all" onclick="setOfficerTab('all')">Semua</button>
+      <button class="tab-btn" data-tab="pending" onclick="setOfficerTab('pending')">Menunggu</button>
+      <button class="tab-btn" data-tab="progress" onclick="setOfficerTab('progress')">Diproses</button>
+      <button class="tab-btn" data-tab="done" onclick="setOfficerTab('done')">Selesai</button>
+    </div>
+
+    <!-- Report List -->
+    <div id="officer-report-list" style="padding-bottom:16px">
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">Memuat Laporan...</div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER MAP (Navigasi)                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-map">
+  <div style="flex:1;position:relative">
+    <div id="officer-map-container" style="width:100%;height:100%"></div>
+
+    <!-- Back Button -->
+    <button class="map-overlay-btn map-back-btn" onclick="backFromOfficerMap()">
+      ← Dashboard
+    </button>
+
+    <!-- Navigation Info Card -->
+    <div class="map-info-card" id="nav-info-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green-light);animation:pulse-badge 1s ease infinite"></div>
+        <span style="font-size:12px;color:var(--green-light);font-weight:600">NAVIGASI AKTIF</span>
+      </div>
+      <div id="nav-report-location" style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:12px"></div>
+      <div class="nav-card-body">
+        <div class="nav-stat">
+          <div class="nav-stat-value" id="nav-distance">—</div>
+          <div class="nav-stat-unit">Jarak</div>
+        </div>
+        <div class="nav-stat">
+          <div class="nav-stat-value" id="nav-eta">—</div>
+          <div class="nav-stat-unit">Estimasi</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="AppUtils.stopNavigation();backFromOfficerMap()" style="flex:1">
+          🛑 Berhenti Navigasi
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="markAsDone()" style="flex:1">
+          ✅ Tandai Selesai
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER DASHBOARD                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-dashboard">
+
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <div class="nav-brand">
+      <div class="nav-brand-icon">🗑️</div>
+      SiLaPah
+    </div>
+    <div class="nav-actions">
+      <button onclick="toggleTheme()" id="themeToggleBtn"
+style="
+background:var(--bg-card);
+border:1px solid var(--border);
+border-radius:50%;
+width:40px;
+height:40px;
+cursor:pointer;
+font-size:18px;
+color:var(--text-primary)
+">
+🌙
+</button>
+      <button onclick="AppUtils.logout()" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;color:var(--text-muted);cursor:pointer;font-size:12px;font-family:var(--font-body)">Keluar</button>
+    </div>
+  </div>
+
+  <!-- Scroll Content -->
+  <div class="scroll-area" style="flex:1">
+
+    <!-- Welcome -->
+    <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Halo,</p>
+        <h2 id="user-name-display" style="font-size:22px;font-weight:800">Warga</h2>
+      </div>
+      <button class="btn btn-primary" onclick="openReportForm()" style="padding:10px 18px;font-size:13px">
+        + Laporan
+      </button>
+    </div>
+
+   <!-- Stats -->
+<div class="stats-grid">
+
+  <div class="stat-card">
+    <div class="stat-number" id="user-stat-total">0</div>
+    <div class="stat-label">Total Laporan</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number"
+         id="user-stat-pending"
+         style="background:linear-gradient(135deg,var(--accent),#f4a261);
+         -webkit-background-clip:text;
+         background-clip:text">
+      0
+    </div>
+    <div class="stat-label">Belum Diproses</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="user-stat-progress">0</div>
+    <div class="stat-label">Diproses</div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-number" id="user-stat-done">0</div>
+    <div class="stat-label">Selesai</div>
+  </div>
+
+</div>
+
+    <!-- Info Banner -->
+    <div style="margin:0 16px 12px">
+      <div class="card" style="background:linear-gradient(135deg,rgba(26,107,74,0.3),rgba(45,156,110,0.15));border-color:rgba(78,203,141,0.3);padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px">♻️</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:2px">Bantu Jaga Kebersihan</div>
+          <div style="font-size:12px;color:var(--text-muted)">Laporan Anda langsung sampai ke petugas terdekat</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Header -->
+    <div class="section-header">
+      <span class="section-title"> Daftar Laporan</span>
+    </div>
+
+    <!-- Report List -->
+    <div id="user-report-list">
+      <div class="empty-state">
+        <div class="empty-icon">📸</div>
+        <div class="empty-title">Belum Ada Laporan</div>
+        <div class="empty-desc">Laporkan sampah liar di sekitar Anda</div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER REPORT FORM                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-report">
+
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <button onclick="AppUtils.showPage('page-user-dashboard')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+    <div class="nav-brand" style="font-size:16px">Buat Laporan</div>
+    <div style="width:38px"></div>
+  </div>
+
+  <!-- Scroll Form -->
+  <div class="scroll-area" style="flex:1;padding:16px">
+    <form id="report-form" onsubmit="submitReport(event)">
+      
+      <!-- Nama Pelapor -->
+<div class="form-group" style="margin-bottom:16px">
+  <label class="form-label">Nama Pelapor</label>
+  <input
+    class="form-input"
+    id="reporter-name"
+    type="text"
+    placeholder="Masukkan nama Anda"
+    required>
+</div>
+
+      <!-- Kategori Sampah -->
+<div class="form-group" style="margin-bottom:16px">
+  <label class="form-label">Kategori Sampah</label>
+
+  <select class="form-input" id="report-category" required>
+    <option value="">Pilih kategori sampah</option>
+
+    <option value="Sampah Rumah Tangga">
+      🏠 Sampah Rumah Tangga
+    </option>
+
+    <option value="Sampah Plastik">
+      🧴 Sampah Plastik
+    </option>
+
+    <option value="Sampah Organik">
+      🍂 Sampah Organik
+    </option>
+
+    <option value="Sampah Elektronik">
+      💻 Sampah Elektronik
+    </option>
+
+    <option value="Sampah Bangunan">
+      🧱 Sampah Bangunan
+    </option>
+
+    <option value="Sampah Berbahaya">
+      ☣️ Sampah Berbahaya
+    </option>
+
+    <option value="Lainnya">
+      📦 Lainnya
+    </option>
+  </select>
+</div>
+
+      <!-- Image Upload -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Foto Sampah</label>
+        <div class="img-upload-area" onclick="this.querySelector('input').click()">
+          <input type="file" id="report-img-input-gallery" accept="image/*" style="display:none" onchange="handleReportImageChange(this)">
+          <input type="file" id="report-img-input-camera" accept="image/*" capture="environment" style="display:none" onchange="handleReportImageChange(this)">
+          <div style="pointer-events:none">
+            <div style="font-size:36px;margin-bottom:8px"></div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px">Tambah Foto</div>
+            <div style="font-size:12px;color:var(--text-muted)">Foto membantu petugas menemukan lokasi</div>
+          </div>
+        </div>
+        <div class="img-upload-options">
+          <button type="button" class="btn btn-outline btn-sm" onclick="handleReportImageGallery()">
+            🖼️ Galeri
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="handleReportImageCamera()">
+            📸 Kamera
+          </button>
+        </div>
+        <img id="report-img-preview" class="img-preview" alt="Preview foto">
+      </div>
+
+      <!-- Location -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Lokasi Sampah</label>
+        <div class="location-row" onclick="getReportLocation()">
+          <span class="location-row-icon">📍</span>
+          <span class="location-row-text" id="report-location-text">Tekan untuk mendapatkan lokasi GPS</span>
+          <button type="button" class="btn btn-sm btn-primary" style="padding:6px 12px;font-size:12px">
+            Dapatkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group" style="margin-bottom:24px">
+        <label class="form-label">Deskripsi</label>
+        <textarea class="form-input" id="report-desc" placeholder="Contoh: Tumpukan sampah di depan gang RT 3, sudah menumpuk 3 hari, bau menyengat..." rows="4"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit" style="padding:16px;font-size:16px">
+         Kirim Laporan
+      </button>
+
+    </form>
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER MAP                                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-map">
+  <div style="flex:1;position:relative">
+    <div id="user-map-container" style="width:100%;height:100%"></div>
+
+    <!-- Back Button -->
+    <button class="map-overlay-btn map-back-btn" onclick="backFromUserMap()">
+      ← Kembali
+    </button>
+
+    <!-- Info Card -->
+    <div class="map-info-card">
+      <div id="live-officer-list"
+style="
+margin-top:12px;
+display:flex;
+flex-direction:column;
+gap:8px;
+max-height:120px;
+overflow:auto;
+">
+</div>
+      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:6px" id="user-map-location">Lokasi Laporan</div>
+      <div id="user-map-status" style="font-size:13px;color:var(--text-muted)">⏳ Menunggu Petugas</div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted)">
+        <div style="width:12px;height:12px;border-radius:50%;background:var(--green-light);animation:pulse-badge 1.5s ease infinite;flex-shrink:0"></div>
+        Posisi petugas diperbarui secara real-time
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  SCRIPTS                                                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script src="js/officer.js"></script>
+<script src="js/user.js"></script>
+
+<script>
+// ─── Init on DOM ready ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Init OTP inputs
+  AppUtils.initOTPInputs();
+
+  // Close notif panel on outside click
+  document.addEventListener('click', e => {
+    const panel = document.getElementById('notif-panel');
+    const btn = e.target.closest('.notif-btn');
+    if (panel && !panel.contains(e.target) && !btn) {
+      AppUtils.closeNotifPanel();
+    }
+  });
+
+  // Close modal on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.classList.remove('open');
+      }
+    });
+  });
+
+// Restore session
+if (!restoreSession()) {
+  AppUtils.showPage('page-home');
+}
+});
+
+// ─── Helper functions ─────────────────────────────────────────
+function togglePassVis(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '👀';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function handleResendOTP() {
+  if (!AppState.pendingOfficerData) {
+    AppUtils.showToast('Silahkan isi formulir pendaftaran terlebih dahulu', 'warning');
+    AppUtils.closeModal('modal-otp');
+    return;
+  }
+  AppUtils.showLoading('Mengirim OTP...');
+  sendOTP().then(ok => {
+    AppUtils.hideLoading();
+  });
+}
+
+async function markAsDone() {
+  const reportId = AppState.navigatingTo;
+  if (!reportId) return;
+
+  AppUtils.showLoading('Menandai selesai...');
+  try {
+    await window.APP_CONFIG.db.ref(`reports/${reportId}`).update({
+      status: 'done',
+      officerArrived: true,
+      officerArrivedAt: Date.now(),
+      officerNavigating: false,
+      updatedAt: Date.now(),
+    });
+    AppUtils.stopNavigation();
+    AppUtils.hideLoading();
+    AppUtils.showToast('Laporan ditandai selesai! ', 'success');
+    backFromOfficerMap();
+  } catch (err) {
+    AppUtils.hideLoading();
+    AppUtils.showToast('Gagal: ' + err.message, 'error');
+  }
+}
+
+// Session restore (local)
+function restoreSession() {
+  const saved = localStorage.getItem('currentUser');
+  if (!saved) return false;
+  try {
+    const user = JSON.parse(saved);
+    AppState.currentUser = user;
+    if (user.role === 'officer') {
+      startOfficerApp();
+    } else {
+      startUserApp();
+      loadUserStats();
+    }
+    return true;
+  } catch { return false; }
+}
+
+function showPage(id) { AppUtils.showPage(id); }
+
+function openReportDirect() {
+
+  // ambil user yang tersimpan
+  let currentUser = localStorage.getItem('currentUser');
+
+  if (currentUser) {
+
+    AppState.currentUser = JSON.parse(currentUser);
+
+  } else {
+
+    // gunakan guest tetap
+    const guestUser = {
+      uid: 'guest-user',
+      name: localStorage.getItem('guestReporterName') || 'Warga',
+      role: 'user'
+    };
+
+    AppState.currentUser = guestUser;
+
+    localStorage.setItem(
+      'currentUser',
+      JSON.stringify(guestUser)
+    );
+  }
+
+  // buka dashboard
+  AppUtils.showPage('page-user-dashboard');
+
+  // render ulang
+  loadUserReportsRealtime();
+  loadUserStats();
+}
+</script>
+
+<script>
+function toggleTheme() {
+
+  document.body.classList.toggle('light-mode');
+
+  const isLight =
+    document.body.classList.contains('light-mode');
+
+  localStorage.setItem(
+    'theme',
+    isLight ? 'light' : 'dark'
+  );
+
+  // UPDATE ICON
+  document.querySelectorAll('#themeToggleBtn').forEach(btn => {
+    btn.textContent = isLight ? '☀️' : '🌙';
+  });
+}
+
+/* simpan mode */
+document.addEventListener('DOMContentLoaded', () => {
+
+  const savedTheme =
+    localStorage.getItem('theme');
+
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+  }
+
+});
+</script>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  IMAGE VIEWER FULLSCREEN                                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="image-viewer" class="image-viewer" onclick="closeImageViewer()">
+  <span class="image-viewer-close">✕</span>
+  <img id="image-viewer-img" src="" alt="Preview">
+</div>
+
+<script>
+function openImageViewer(src) {
+  const viewer = document.getElementById('image-viewer');
+  const img = document.getElementById('image-viewer-img');
+
+  img.src = src;
+  viewer.classList.add('open');
+}
+
+function closeImageViewer() {
+  document
+    .getElementById('image-viewer')
+    .classList.remove('open');
+}
+</script>
+
+</body>
+</html>
+
+
