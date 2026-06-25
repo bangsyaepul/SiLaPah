@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a3d2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SiLaPah — Sistem Pelaporan Sampah Liar</title>
+
+  <!-- Leaflet Maps -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  GLOBAL OVERLAYS                                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="bg-pattern"></div>
+
+<!-- Toast -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">Memproses...</div>
+</div>
+
+<!-- ─── NOTIFICATION PANEL ─── -->
+<div class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    <span class="notif-panel-title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>Notifikasi</span>
+    <button class="notif-clear-btn" onclick="AppUtils.clearAllNotifs()">Hapus Semua</button>
+  </div>
+  <div class="notif-list" id="notif-list">
+    <div class="empty-state"><div class="empty-icon"><svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div><p class="empty-desc">Belum ada notifikasi</p></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  SIDEBAR OFFICER                                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="officer-sidebar-overlay" onclick="closeSidebar('officer')"></div>
+<div class="sidebar" id="officer-sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="nav-brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></div>
+      <span>Si<span class="brand-accent">La</span>Pah</span>
+    </div>
+    <button class="sidebar-close" onclick="closeSidebar('officer')">✕</button>
+  </div>
+
+  <div class="sidebar-user-card">
+    <!-- Avatar dengan tombol edit foto -->
+    <div style="position:relative;cursor:pointer" onclick="triggerOfficerPhotoUpload()" title="Ganti foto profil">
+      <div class="sidebar-avatar" id="officer-sidebar-avatar" style="overflow:hidden;background:transparent">
+        <img id="officer-sidebar-avatar-img" src="" alt="foto" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:50%" />
+        <span id="officer-sidebar-avatar-emoji">👷‍♂️</span>
+      </div>
+      <div style="position:absolute;bottom:0;right:0;width:20px;height:20px;background:#2d6ea8;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg-primary,#0a1a10)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="4"/></svg></div>
+    </div>
+    <input type="file" id="officer-photo-input" accept="image/*" style="display:none" onchange="handleOfficerPhotoChange(this)" />
+    <div class="sidebar-user-info">
+      <div class="sidebar-user-name" id="sidebar-officer-name">Petugas</div>
+      <div class="sidebar-user-role" id="sidebar-officer-category">Petugas Kebersihan</div>
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-actions">
+
+    <!-- Theme Toggle -->
+    <button class="sidebar-theme-toggle" onclick="toggleTheme(); updateSidebarThemeBtn()" id="sidebar-theme-btn">
+      <div class="sidebar-theme-toggle-left">
+        <span class="sidebar-theme-toggle-icon" id="sidebar-theme-icon">🌙</span>
+        <span class="sidebar-theme-toggle-text" id="sidebar-theme-label">Mode Terang</span>
+      </div>
+      <div class="sidebar-theme-switch" id="sidebar-theme-switch"></div>
+    </button>
+
+    <!-- Logout Button -->
+    <button class="sidebar-logout-btn" onclick="AppUtils.logout(); closeSidebar('officer')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Keluar
+    </button>
+
+  </div>
+
+  <div class="sidebar-footer">
+    SiLaPah v3.0 · Sistem Pelaporan Sampah Liar
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  SIDEBAR USER / WARGA                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="sidebar-overlay" id="user-sidebar-overlay" onclick="closeSidebar('user')"></div>
+<div class="sidebar" id="user-sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <div class="nav-brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></div>
+      <span>Si<span class="brand-accent">La</span>Pah</span>
+    </div>
+    <button class="sidebar-close" onclick="closeSidebar('user')">✕</button>
+  </div>
+
+  <div class="sidebar-user-card">
+    <div class="sidebar-avatar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+    <div class="sidebar-user-info">
+      <div class="sidebar-user-name">Selamat Datang</div>
+      <div class="sidebar-user-role">Warga Pelapor Sampah</div>
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div class="sidebar-actions">
+
+    <!-- Theme Toggle -->
+    <button class="sidebar-theme-toggle" onclick="toggleTheme(); updateSidebarThemeBtn()" id="user-sidebar-theme-btn">
+      <div class="sidebar-theme-toggle-left">
+        <span class="sidebar-theme-toggle-icon" id="user-sidebar-theme-icon">🌙</span>
+        <span class="sidebar-theme-toggle-text" id="user-sidebar-theme-label">Mode Terang</span>
+      </div>
+      <div class="sidebar-theme-switch" id="user-sidebar-theme-switch"></div>
+    </button>
+
+    <!-- Logout Button -->
+    <button class="sidebar-logout-btn" onclick="logout(); closeSidebar('user')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Keluar
+    </button>
+
+  </div>
+
+  <div class="sidebar-footer">
+    SiLaPah v3.0 · Sistem Pelaporan Sampah Liar
+  </div>
+</div>
+
+
+<!-- ─── MODAL: OTP ─── -->
+<div class="modal-overlay" id="modal-otp">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🔐 Verifikasi OTP</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('modal-otp')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;line-height:1.5">
+        Kode OTP 6 digit telah dikirim ke WhatsApp Admin. Masukkan kode untuk melanjutkan pendaftaran.
+      </p>
+      <div class="otp-inputs">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+        <input class="otp-input" type="text" maxlength="1" inputmode="numeric">
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);text-align:center">
+        Kode berlaku selama 10 menit
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline btn-full" onclick="handleResendOTP()">Kirim Ulang OTP</button>
+      <button class="btn btn-primary btn-full" onclick="AppUtils.handleOTPVerify()">Verifikasi</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL: Officer Report Detail ─── -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Detail Laporan</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('detail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <img id="detail-img"
+onclick="openImageViewer(this.src)"
+style="width:100%;border-radius:12px;margin-bottom:14px;display:none;max-height:200px;object-fit:cover;cursor:pointer"
+alt="Foto sampah">
+      <div class="detail-box">
+  <label class="detail-label">Lokasi</label>
+  <div id="detail-location" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Pelapor</label>
+  <div id="detail-reporter" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Kategori Sampah</label>
+  <div id="detail-category" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Waktu Pelaporan</label>
+  <div id="detail-time" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Deskripsi</label>
+  <div id="detail-desc" class="detail-value detail-desc"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Ubah Status</label>
+
+  <select class="form-input" id="detail-status">
+    <option value="pending">⏳ Belum Dibersihkan</option>
+    <option value="progress">🚛 Sedang Dibersihkan</option>
+    <option value="transporting">🏭 Mengantarkan ke TPS</option>
+    <option value="done">✅ Selesai</option>
+  </select>
+</div>
+    </div>
+    <div class="modal-footer" style="flex-direction:column;gap:8px">
+      <button id="btn-navigate" class="btn btn-accent btn-full" style="display:none">
+        Mulai Navigasi ke Lokasi
+      </button>
+      <button class="btn btn-primary btn-full" onclick="saveReportStatus()">
+        Simpan Status
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MODAL: User Report Detail ─── -->
+<div class="modal-overlay" id="user-detail-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Status Laporan</span>
+      <button class="modal-close" onclick="AppUtils.closeModal('user-detail-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <button id="user-detail-foto-btn" style="display:none;width:100%;margin-bottom:12px;justify-content:center;align-items:center;gap:8px;padding:10px 16px;background:rgba(78,203,141,0.12);border:1px solid rgba(78,203,141,0.35);border-radius:12px;color:var(--green-light);font-weight:600;font-size:14px;cursor:pointer;transition:background .2s">
+        Lihat Foto Laporan Sampah
+      </button>
+      <img id="user-detail-img"
+        onclick="openImageViewer(this.src)"
+        style="width:100%;border-radius:12px;margin-bottom:14px;display:none;max-height:220px;object-fit:cover;cursor:pointer"
+        alt="Foto sampah">
+      <div class="detail-box-list">
+        <div class="detail-box status-box">
+  <div class="detail-label">STATUS</div>
+  <div id="user-detail-status" class="detail-status-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Lokasi</label>
+  <div id="user-detail-location" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Petugas</label>
+  <div id="user-detail-officer" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Dilaporkan</label>
+  <div id="user-detail-time" class="detail-value"></div>
+</div>
+
+<div class="detail-box">
+  <label class="detail-label">Deskripsi</label>
+  <div id="user-detail-desc" class="detail-value detail-desc"></div>
+</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="user-detail-map-btn" class="btn btn-outline btn-full" style="display:none">
+        Lihat di Peta
+      </button>
+      <button class="btn btn-primary btn-full" onclick="AppUtils.closeModal('user-detail-modal')">
+        Tutup
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: HOME (Pilih Peran)                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page active" id="page-home" style="overflow-y:auto">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;min-height:100vh">
+
+    <!-- Hero -->
+    <div style="text-align:center;margin-bottom:40px">
+      <div style="width:90px;height:90px;background:linear-gradient(135deg,var(--green-mid),var(--green-light));border-radius:28px;display:flex;align-items:center;justify-content:center;font-size:44px;margin:0 auto 20px;box-shadow:0 12px 40px rgba(78,203,141,0.35)"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></div>
+      <h1 style="font-size:30px;font-weight:800;margin-bottom:8px">SiLaPah</h1>
+      <p style="color:var(--text-muted);font-size:15px;line-height:1.5">Sistem Pelaporan Sampah Liar<br></p>
+    </div>
+
+    <!-- Role Selection -->
+    <div style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px">
+
+      <div class="card" onclick="showPage('page-officer-login')" style="cursor:pointer;padding:20px;transition:var(--transition);background:linear-gradient(135deg,rgba(26,61,92,0.35),rgba(45,110,168,0.15));border-color:rgba(45,110,168,0.4)" onmouseover="this.style.borderColor='#2d6ea8'" onmouseout="this.style.borderColor='rgba(45,110,168,0.4)'">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:52px;height:52px;background:linear-gradient(135deg,#1a3d5c,#2d6ea8);border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20"/><path d="M12 2a7 7 0 0 0-7 7v2h14V9a7 7 0 0 0-7-7z"/><path d="M12 2v9"/><path d="M5 9H2"/><path d="M22 9h-3"/><rect x="5" y="18" width="14" height="3" rx="1"/></svg></div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:3px">Masuk sebagai Petugas</div>
+            <div style="font-size:12px;color:var(--text-muted)">Login akun petugas kebersihan</div>
+          </div>
+          <div style="margin-left:auto;color:var(--text-muted);font-size:20px">›</div>
+        </div>
+      </div>
+
+      <div class="card" onclick="openReportDirect()" style="cursor:pointer;padding:20px;transition:var(--transition)" onmouseover="this.style.borderColor='var(--green-mid)'" onmouseout="this.style.borderColor=''">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="width:52px;height:52px;background:linear-gradient(135deg,#1a5c3e,var(--green-mid));border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:3px">Masuk sebagai Warga</div>
+            <div style="font-size:12px;color:var(--text-muted)">Laporkan sampah di lingkungan Anda</div>
+          </div>
+          <div style="margin-left:auto;color:var(--text-muted);font-size:20px">›</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Stats teaser -->
+    <div style="margin-top:36px;text-align:center">
+      <p style="font-size:12px;color:var(--text-muted)">Bersama menjaga kebersihan lingkungan</p>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER LOGIN                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-login" style="overflow-y:auto">
+  <div class="auth-page">
+    <button onclick="AppUtils.showPage('page-home')" style="position:absolute;top:16px;left:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+
+    <div class="auth-logo"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18h20"/><path d="M12 2a7 7 0 0 0-7 7v2h14V9a7 7 0 0 0-7-7z"/><path d="M12 2v9"/><path d="M5 9H2"/><path d="M22 9h-3"/><rect x="5" y="18" width="14" height="3" rx="1"/></svg></div>
+    <h1 class="auth-title">Login Petugas</h1>
+    <p class="auth-subtitle">Masuk untuk mengelola laporan sampah</p>
+
+    <form class="auth-form" onsubmit="AppUtils.handleOfficerLogin(event)">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="login-username" type="text" placeholder="Masukkan username" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <div style="position:relative">
+          <input class="form-input" id="login-password" type="password" placeholder="Masukkan password" autocomplete="current-password" required style="padding-right:48px">
+          <button type="button" onclick="togglePassVis('login-password',this)" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-muted)">👁</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit">Masuk</button>
+
+      <div class="auth-divider">atau</div>
+
+      <button type="button" class="btn btn-outline btn-full" onclick="AppUtils.showPage('page-officer-register')">
+        Daftar Akun Petugas Baru
+      </button>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER REGISTER                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-register" style="overflow-y:auto">
+  <div class="auth-page">
+    <button onclick="AppUtils.showPage('page-officer-login')" style="position:absolute;top:16px;left:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+
+    <div class="auth-logo">📋</div>
+    <h1 class="auth-title">Daftar Petugas</h1>
+    <p class="auth-subtitle">OTP akan dikirim ke WhatsApp Admin untuk verifikasi</p>
+
+    <form class="auth-form" onsubmit="AppUtils.handleOfficerRegister(event)">
+      <div class="form-group">
+        <label class="form-label">Nama Lengkap</label>
+        <input class="form-input" id="reg-name" type="text" placeholder="Nama petugas" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input class="form-input" id="reg-username" type="text" placeholder="Buat username unik" required autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input class="form-input" id="reg-password" type="password" placeholder="Minimal 6 karakter" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Konfirmasi Password</label>
+        <input class="form-input" id="reg-confirm-password" type="password" placeholder="Ulangi password" required>
+      </div>
+
+      <!-- Kategori Sampah Petugas -->
+      <div class="form-group">
+        <label class="form-label">Kategori Sampah yang Ditangani</label>
+        <select class="form-input" id="reg-category" required>
+          <option value="">Pilih kategori tugas Anda</option>
+          <option value="Sampah Rumah Tangga">🏠 Sampah Rumah Tangga</option>
+          <option value="Sampah Plastik">🧴 Sampah Plastik</option>
+          <option value="Sampah Organik">🍂 Sampah Organik</option>
+          <option value="Sampah Elektronik">💻 Sampah Elektronik</option>
+          <option value="Sampah Bangunan">🧱 Sampah Bangunan</option>
+          <option value="Sampah Berbahaya">☣️ Sampah Berbahaya</option>
+          <option value="Lainnya">📦 Lainnya</option>
+        </select>
+      </div>
+
+      <div class="card" style="background:rgba(240,192,48,0.08);border-color:rgba(240,192,48,0.3);padding:12px">
+        <p style="font-size:12px;color:var(--accent);line-height:1.5">
+          ⚠️ Kode OTP akan dikirim ke nomor WhatsApp Admin yang terdaftar, bukan ke nomor Anda. Hanya staf resmi yang dapat mendaftar.
+        </p>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit">Kirim OTP & Daftar</button>
+    </form>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER DASHBOARD                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-dashboard">
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <button class="nav-hamburger" onclick="openSidebar('officer')" title="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-brand">
+      <div class="nav-brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></div>
+      Si<span class="brand-accent">La</span>Pah
+    </div>
+    <div class="nav-actions">
+      <button class="notif-btn" onclick="AppUtils.toggleNotifPanel()" title="Notifikasi">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        <span class="notif-badge" id="notif-badge"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Scroll Content -->
+  <div class="scroll-area" style="flex:1">
+
+    <!-- Welcome -->
+    <div style="padding:16px 16px 8px">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Selamat bertugas,</p>
+      <h2 id="officer-name-display" style="font-size:22px;font-weight:800">Petugas</h2>
+      <div id="officer-category-badge" style="display:inline-flex;align-items:center;gap:6px;background:rgba(78,203,141,0.15);border:1px solid rgba(78,203,141,0.4);border-radius:20px;padding:4px 12px;margin-top:6px;font-size:12px;color:var(--green-light);font-weight:600"></div>
+    </div>
+
+<!-- Stats + Filter Status (digabung jadi satu bagian, klik kotak untuk filter) -->
+<div class="stats-grid" id="officer-stats-grid">
+
+  <div class="stat-card active" data-tab="all" onclick="setOfficerTab('all')">
+    <div class="stat-number" id="stat-total">0</div>
+    <div class="stat-label">Total Laporan</div>
+  </div>
+
+ <div class="stat-card" data-tab="pending" onclick="setOfficerTab('pending')">
+  <div class="stat-number" id="stat-pending">0</div>
+  <div class="stat-label">Belum Diproses</div>
+</div>
+
+  <div class="stat-card" data-tab="progress" onclick="setOfficerTab('progress')">
+    <div class="stat-number" id="stat-progress">0</div>
+    <div class="stat-label">Diproses</div>
+  </div>
+
+  <div class="stat-card" data-tab="done" onclick="setOfficerTab('done')">
+    <div class="stat-number" id="stat-done">0</div>
+    <div class="stat-label">Selesai</div>
+  </div>
+
+</div>
+
+    <!-- ── Daftar Laporan: Header + Kategori Dropdown ── -->
+    <div style="padding:4px 16px 8px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:14px;font-weight:800;color:var(--text-primary)">DAFTAR LAPORAN</span>
+        <!-- Kategori dropdown petugas -->
+        <div style="position:relative" id="officer-cat-dropdown-wrap">
+          <button class="user-cat-dropdown-btn" id="officer-cat-dropdown-btn" onclick="toggleOfficerCatDropdown()">
+            <span id="officer-cat-dropdown-label">🗂️ Semua Kategori</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="officer-cat-dropdown-chevron"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="user-cat-dropdown-menu" id="officer-cat-dropdown-menu">
+            <!-- diisi JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report List -->
+    <div id="officer-report-list" style="padding-bottom:16px">
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <div class="empty-title">Memuat Laporan...</div>
+      </div>
+    </div>
+
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: OFFICER MAP (Navigasi)                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-officer-map">
+  <div style="flex:1;position:relative" id="officer-map-wrap" class="map-container-wrap">
+    <div id="officer-map-container" style="width:100%;height:100%"></div>
+
+    <!-- Top Bar -->
+    <div class="nav-top-bar">
+      <button class="nav-back-fab" onclick="backFromOfficerMap()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="nav-status-pill">
+        <span class="nav-pulse-dot"></span>
+        <span>NAVIGASI AKTIF</span>
+      </div>
+      <button class="map-fullscreen-fab" id="officer-map-fs-btn" onclick="toggleMapFullscreen('officer-map-wrap','nav-info-card','officer-map-fs-btn')" title="Peta Fullscreen">
+        <svg id="officer-map-fs-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
+    </div>
+
+    <!-- Modern Navigation Panel -->
+    <div class="nav-bottom-panel" id="nav-info-card">
+
+      <!-- Modern Panel Handle + Expand Button -->
+      <button class="nav-panel-expand-btn" id="officer-panel-expand-btn" onclick="togglePanelFullscreen('nav-info-card','officer-map-wrap','officer-panel-expand-btn')" title="Perluas panel">
+        <div class="panel-handle-bar"></div>
+        <div class="panel-arrow-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+      </button>
+
+      <!-- Destination Row -->
+      <div class="nav-destination-row">
+        <div class="nav-dest-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="nav-dest-info">
+          <div class="nav-dest-label" id="nav-report-location-label">Menuju Lokasi Sampah</div>
+          <div class="nav-dest-name" id="nav-report-location">Memuat lokasi…</div>
+        </div>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="nav-stats-row">
+        <div class="nav-stat-pill">
+          <div class="nav-stat-icon nav-stat-icon--dist">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="5" r="2.2"/><line x1="6.6" y1="17.4" x2="17.4" y2="6.6" stroke-dasharray="2.2 2.4"/></svg>
+          </div>
+          <div>
+            <div class="nav-stat-num" id="nav-distance">—</div>
+            <div class="nav-stat-lbl">Jarak</div>
+          </div>
+        </div>
+        <div class="nav-stat-divider"></div>
+        <div class="nav-stat-pill">
+          <div class="nav-stat-icon nav-stat-icon--eta">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div>
+            <div class="nav-stat-num" id="nav-eta">—</div>
+            <div class="nav-stat-lbl">Estimasi Tiba</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transport to TPA Row -->
+      <div class="nav-transport-row">
+        <button class="nav-action-btn nav-action-btn--transport" id="officer-transport-btn" onclick="markAsTransporting()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v8H3z"/><path d="M14 11h4l3 3v1h-7z"/><circle cx="7.5" cy="17.5" r="1.5"/><circle cx="17.5" cy="17.5" r="1.5"/></svg>
+          Mengantarkan ke TPA
+        </button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="nav-actions-row">
+        <button class="nav-action-btn nav-action-btn--stop" onclick="AppUtils.stopNavigation();backFromOfficerMap()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+          Berhenti
+        </button>
+        <button class="nav-action-btn nav-action-btn--done" onclick="markAsDone()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Tandai Selesai
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER DASHBOARD                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-dashboard">
+
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <button class="nav-hamburger" onclick="openSidebar('user')" title="Menu">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-brand">
+      <div class="nav-brand-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></div>
+      Si<span class="brand-accent">La</span>Pah
+    </div>
+    <div class="nav-actions">
+    </div>
+  </div>
+
+  <!-- Scroll Content -->
+  <div class="scroll-area" style="flex:1">
+
+    <!-- Welcome -->
+    <div style="padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Halo,</p>
+        <h2 style="font-size:22px;font-weight:800">Warga </h2>
+      </div>
+      <button class="btn btn-primary" onclick="openReportForm()" style="padding:10px 18px;font-size:13px">
+        + Laporan
+      </button>
+    </div>
+
+   <!-- Stats + Filter Status (digabung jadi satu bagian, klik kotak untuk filter) -->
+<div class="stats-grid" id="user-stats-grid">
+
+  <div class="stat-card active" data-status="semua" onclick="switchUserStatusTab('semua')">
+    <div class="stat-number" id="user-stat-total">0</div>
+    <div class="stat-label">Total Laporan</div>
+  </div>
+
+  <div class="stat-card" data-status="pending" onclick="switchUserStatusTab('pending')">
+    <div class="stat-number"
+         id="user-stat-pending"
+         style="background:linear-gradient(135deg,var(--accent),#f4a261);
+         -webkit-background-clip:text;
+         background-clip:text">
+      0
+    </div>
+    <div class="stat-label">Belum Dibersihkan</div>
+  </div>
+
+  <div class="stat-card" data-status="progress" onclick="switchUserStatusTab('progress')">
+    <div class="stat-number" id="user-stat-progress">0</div>
+    <div class="stat-label">Sedang Dibersihkan</div>
+  </div>
+
+  <div class="stat-card" data-status="done" onclick="switchUserStatusTab('done')">
+    <div class="stat-number" id="user-stat-done">0</div>
+    <div class="stat-label">Selesai</div>
+  </div>
+
+</div>
+
+    <!-- Info Banner -->
+    <div style="margin:0 16px 12px">
+      <div class="card" style="background:linear-gradient(135deg,rgba(26,107,74,0.3),rgba(45,156,110,0.15));border-color:rgba(78,203,141,0.3);padding:14px 16px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--green-light)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 19H4.815a1.83 1.83 0 0 1-1.57-.881 1.785 1.785 0 0 1-.004-1.784L7.196 9.5"/><path d="M11 19h8.203a1.83 1.83 0 0 0 1.556-.89 1.784 1.784 0 0 0 0-1.775l-1.226-2.12"/><path d="m14 16-3 3 3 3"/><path d="M8.293 13.596 7.196 9.5 3.1 10.598"/><path d="m9.344 5.811 1.093-1.892A1.83 1.83 0 0 1 11.985 3a1.784 1.784 0 0 1 1.546.888l3.943 6.843"/><path d="m13.378 9.633 4.096 1.098 1.097-4.096"/></svg></span>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:2px">Bantu Jaga Kebersihan</div>
+          <div style="font-size:12px;color:var(--text-muted)">Laporan Anda langsung sampai ke petugas terdekat</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Daftar Laporan: Status Tabs + Kategori Dropdown ── -->
+    <div style="padding:0 16px">
+
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <span style="font-size:14px;font-weight:800;color:var(--text-primary)">DAFTAR LAPORAN</span>
+        <!-- Kategori dropdown -->
+        <div style="position:relative" id="user-cat-dropdown-wrap">
+          <button class="user-cat-dropdown-btn" id="user-cat-dropdown-btn" onclick="toggleUserCatDropdown()">
+            <span id="user-cat-dropdown-label">Semua Kategori</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="user-cat-dropdown-chevron"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="user-cat-dropdown-menu" id="user-cat-dropdown-menu">
+            <!-- diisi JS -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Report List -->
+    <div id="user-report-list" style="padding:0 16px;margin-top:10px">
+      <div class="empty-state">
+        <div class="empty-icon">📸</div>
+        <div class="empty-title">Belum Ada Laporan</div>
+        <div class="empty-desc">Laporkan sampah liar di sekitar Anda</div>
+      </div>
+    </div>
+
+    <!-- (hidden, kept for backward compat) -->
+    <div id="user-report-by-category" style="display:none"></div>
+
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER REPORT FORM                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-report">
+
+  <!-- Top Nav -->
+  <div class="top-nav">
+    <button onclick="AppUtils.showPage('page-user-dashboard')" style="background:var(--bg-card);border:1px solid var(--border);border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:var(--text-primary)">←</button>
+    <div class="nav-brand" style="font-size:16px">Buat Laporan</div>
+    <div style="width:38px"></div>
+  </div>
+
+  <!-- Scroll Form -->
+  <div class="scroll-area" style="flex:1;padding:16px">
+    <form id="report-form" onsubmit="submitReport(event)">
+      
+      <!-- Nama Pelapor -->
+<div class="form-group" style="margin-bottom:16px">
+  <label class="form-label">Nama Pelapor</label>
+  <input
+    class="form-input"
+    id="reporter-name"
+    type="text"
+    placeholder="Masukkan nama Anda"
+    required>
+</div>
+
+      <!-- Kategori Sampah -->
+<div class="form-group" style="margin-bottom:16px">
+  <label class="form-label">Kategori Sampah</label>
+
+  <select class="form-input" id="report-category" required>
+    <option value="">Pilih kategori sampah</option>
+
+    <option value="Sampah Rumah Tangga">
+      🏠 Sampah Rumah Tangga
+    </option>
+
+    <option value="Sampah Plastik">
+      🧴 Sampah Plastik
+    </option>
+
+    <option value="Sampah Organik">
+      🍂 Sampah Organik
+    </option>
+
+    <option value="Sampah Elektronik">
+      💻 Sampah Elektronik
+    </option>
+
+    <option value="Sampah Bangunan">
+      🧱 Sampah Bangunan
+    </option>
+
+    <option value="Sampah Berbahaya">
+      ☣️ Sampah Berbahaya
+    </option>
+
+    <option value="Lainnya">
+      📦 Lainnya
+    </option>
+  </select>
+</div>
+
+      <!-- Image Upload -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Foto Sampah</label>
+        <div class="img-upload-area" onclick="this.querySelector('input').click()">
+          <input type="file" id="report-img-input-gallery" accept="image/*" style="display:none" onchange="handleReportImageChange(this)">
+          <input type="file" id="report-img-input-camera" accept="image/*" capture="environment" style="display:none" onchange="handleReportImageChange(this)">
+          <div style="pointer-events:none">
+            <div style="font-size:36px;margin-bottom:8px"></div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:4px">Tambah Foto</div>
+            <div style="font-size:12px;color:var(--text-muted)">Foto membantu petugas menemukan lokasi</div>
+          </div>
+        </div>
+        <div class="img-upload-options">
+          <button type="button" class="btn btn-outline btn-sm" onclick="handleReportImageGallery()">
+            🖼️ Galeri
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="handleReportImageCamera()">
+            📸 Kamera
+          </button>
+        </div>
+        <img id="report-img-preview" class="img-preview" alt="Preview foto">
+      </div>
+
+      <!-- Location -->
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Lokasi Sampah</label>
+        <div class="location-row" onclick="getReportLocation()">
+          <span class="location-row-icon">📍</span>
+          <span class="location-row-text" id="report-location-text">Tekan untuk mendapatkan lokasi GPS</span>
+          <button type="button" class="btn btn-sm btn-primary" style="padding:6px 12px;font-size:12px">
+            Dapatkan
+          </button>
+        </div>
+      </div>
+
+      <!-- Description -->
+      <div class="form-group" style="margin-bottom:24px">
+        <label class="form-label">Deskripsi</label>
+        <textarea class="form-input" id="report-desc" placeholder="Contoh: Tumpukan sampah di depan gang RT 3, sudah menumpuk 3 hari, bau menyengat..." rows="4"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-full" type="submit" style="padding:16px;font-size:16px">
+         Kirim Laporan
+      </button>
+
+    </form>
+    <div style="height:20px"></div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  PAGE: USER MAP                                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-user-map">
+  <div style="flex:1;position:relative" id="user-map-outer-wrap">
+    <div id="user-map-container" style="width:100%;height:100%" class="map-container-wrap"></div>
+
+    <!-- Top Bar -->
+    <div class="nav-top-bar">
+      <button class="nav-back-fab" onclick="backFromUserMap()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="nav-status-pill nav-status-pill--user">
+        <span class="nav-pulse-dot nav-pulse-dot--user"></span>
+        <span>LACAK PETUGAS</span>
+      </div>
+      <button class="map-fullscreen-fab map-fullscreen-fab--user" id="user-map-fs-btn" onclick="toggleMapFullscreen('user-map-outer-wrap','user-nav-panel','user-map-fs-btn')" title="Peta Fullscreen">
+        <svg id="user-map-fs-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
+    </div>
+
+    <!-- Modern User Tracking Panel -->
+    <div class="nav-bottom-panel nav-bottom-panel--user" id="user-nav-panel">
+
+      <!-- Modern Panel Handle + Expand Button -->
+      <button class="nav-panel-expand-btn" id="user-panel-expand-btn" onclick="togglePanelFullscreen('user-nav-panel','user-map-container','user-panel-expand-btn')" title="Perluas panel">
+        <div class="panel-handle-bar panel-handle-bar--user"></div>
+        <div class="panel-arrow-icon panel-arrow-icon--user">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+        </div>
+      </button>
+
+      <!-- Location + Category Row -->
+      <div class="nav-destination-row">
+        <div class="nav-dest-icon nav-dest-icon--trash">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </div>
+        <div class="nav-dest-info">
+          <div class="nav-dest-label">Lokasi Laporan Anda</div>
+          <div class="nav-dest-name" id="user-map-location">Memuat lokasi…</div>
+        </div>
+        <div id="user-map-category-badge" class="umap-cat-badge"></div>
+      </div>
+
+      <!-- Status Badge -->
+      <div class="umap-status-row">
+        <div class="umap-status-badge" id="user-map-status">⏳ Menunggu Petugas</div>
+      </div>
+
+      <!-- Distance + ETA Stats Row (sama seperti panel petugas) -->
+      <div class="nav-stats-row" id="user-nav-stats-row" style="display:none">
+        <div class="nav-stat-pill">
+          <div class="nav-stat-icon nav-stat-icon--dist">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="5" r="2.2"/><line x1="6.6" y1="17.4" x2="17.4" y2="6.6" stroke-dasharray="2.2 2.4"/></svg>
+          </div>
+          <div>
+            <div class="nav-stat-num" id="user-nav-distance">—</div>
+            <div class="nav-stat-lbl">Jarak</div>
+          </div>
+        </div>
+        <div class="nav-stat-divider"></div>
+        <div class="nav-stat-pill">
+          <div class="nav-stat-icon nav-stat-icon--eta">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div>
+            <div class="nav-stat-num" id="user-nav-eta">—</div>
+            <div class="nav-stat-lbl">Estimasi Tiba</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Officer Info Card -->
+      <div id="user-map-officer-info" style="display:none"></div>
+
+      <!-- Real-time indicator -->
+      <div class="umap-realtime-row">
+        <span class="nav-pulse-dot nav-pulse-dot--user" style="width:9px;height:9px"></span>
+        <span>Posisi petugas diperbarui real-time</span>
+      </div>
+
+      <!-- Other Officers Panel -->
+      <div id="user-map-other-officers" style="display:none;margin-top:10px">
+        <div class="umap-other-title">🚛 Petugas Kategori Sama Aktif</div>
+        <div id="user-map-other-officers-list" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  SCRIPTS                                                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script src="js/officer.js"></script>
+<script src="js/user.js"></script>
+
+<script>
+// ─── Panel Fullscreen Toggle (panel expand) ───────────────────
+function togglePanelFullscreen(panelId, mapId, btnId) {
+  const panel = document.getElementById(panelId);
+  const map   = document.getElementById(mapId);
+  const btn   = document.getElementById(btnId);
+  if (!panel) return;
+
+  const isFullscreen = panel.classList.contains('fullscreen');
+
+  if (isFullscreen) {
+    // Collapse
+    panel.classList.remove('fullscreen');
+    if (map) map.classList.remove('panel-fullscreen');
+    // Restore scroll
+    panel.scrollTop = 0;
+    // Rotate icon back
+    const icon = btn ? btn.querySelector('svg') : null;
+    if (icon) icon.style.transform = '';
+  } else {
+    // Expand
+    panel.classList.add('fullscreen');
+    if (map) map.classList.add('panel-fullscreen');
+  }
+}
+
+// ─── Map Fullscreen Toggle (peta fullscreen, panel sembunyi) ──
+function toggleMapFullscreen(wrapId, panelId, btnId) {
+  const wrap  = document.getElementById(wrapId);
+  const panel = document.getElementById(panelId);
+  const btn   = document.getElementById(btnId);
+  if (!wrap) return;
+
+  const isMapFull = wrap.classList.contains('map-only-fullscreen');
+
+  if (isMapFull) {
+    // Keluar dari map fullscreen → tampilkan panel kembali
+    wrap.classList.remove('map-only-fullscreen');
+    if (panel) {
+      panel.style.display = '';
+      panel.classList.remove('panel-map-hidden');
+    }
+    // Ganti ikon jadi compress
+    if (btn) btn.title = 'Peta Fullscreen';
+    const icon = btn ? btn.querySelector('svg') : null;
+    if (icon) icon.innerHTML = '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>';
+  } else {
+    // Masuk map fullscreen → sembunyikan panel
+    wrap.classList.add('map-only-fullscreen');
+    if (panel) {
+      panel.classList.add('panel-map-hidden');
+      // Delay hide agar animasi bisa jalan
+      setTimeout(() => {
+        if (panel.classList.contains('panel-map-hidden')) panel.style.display = 'none';
+      }, 300);
+    }
+    // Ganti ikon jadi minimize
+    if (btn) btn.title = 'Keluar Fullscreen';
+    const icon = btn ? btn.querySelector('svg') : null;
+    if (icon) icon.innerHTML = '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>';
+  }
+
+  // Invalidate ukuran peta agar tiles tampil benar
+  setTimeout(() => {
+    if (window.officerMapInstance) window.officerMapInstance.invalidateSize();
+    if (window.userMapInstance)    window.userMapInstance.invalidateSize();
+  }, 350);
+}
+
+// ─── Init on DOM ready ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Init OTP inputs
+  AppUtils.initOTPInputs();
+
+  // Close notif panel on outside click
+  document.addEventListener('click', e => {
+    const panel = document.getElementById('notif-panel');
+    const btn = e.target.closest('.notif-btn');
+    if (panel && !panel.contains(e.target) && !btn) {
+      AppUtils.closeNotifPanel();
+    }
+  });
+
+  // Close modal on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) {
+        overlay.classList.remove('open');
+      }
+    });
+  });
+
+// Restore session
+if (!restoreSession()) {
+  AppUtils.showPage('page-home');
+}
+});
+
+// ─── Helper functions ─────────────────────────────────────────
+function togglePassVis(inputId, btn) {
+  const input = document.getElementById(inputId);
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '👀';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function handleResendOTP() {
+  if (!AppState.pendingOfficerData) {
+    AppUtils.showToast('Silahkan isi formulir pendaftaran terlebih dahulu', 'warning');
+    AppUtils.closeModal('modal-otp');
+    return;
+  }
+  AppUtils.showLoading('Mengirim OTP...');
+  sendOTP().then(ok => {
+    AppUtils.hideLoading();
+  });
+}
+
+async function markAsTransporting() {
+  const reportId = AppState.navigatingTo;
+  if (!reportId) return;
+
+  const btn = document.getElementById('officer-transport-btn');
+  if (btn) btn.disabled = true; // cegah klik ganda
+
+  AppUtils.showLoading('Memperbarui status...');
+  try {
+    await window.APP_CONFIG.db.ref(`reports/${reportId}`).update({
+      status: 'transporting',
+      officerNavigating: false,
+      officerTransporting: true,
+      updatedAt: Date.now(),
+    });
+    AppUtils.hideLoading();
+    AppUtils.showToast('🏭 Status diperbarui: Mengantarkan ke TPA. Warga sudah diberi tahu.', 'success');
+
+    // Perbarui tampilan tombol & label tujuan di panel navigasi
+    if (window.OfficerApp && window.OfficerApp._syncTransportButtonState) {
+      window.OfficerApp._syncTransportButtonState(reportId);
+    } else {
+      // Fallback manual jika fungsi sync belum diexport
+      const label = document.getElementById('nav-report-location-label');
+      if (label) label.textContent = 'Mengantarkan ke TPA';
+      if (btn) {
+        btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Sedang Menuju TPA';
+      }
+    }
+  } catch (err) {
+    AppUtils.hideLoading();
+    if (btn) btn.disabled = false;
+    AppUtils.showToast('Gagal memperbarui status: ' + err.message, 'error');
+  }
+}
+
+async function markAsDone() {
+  const reportId = AppState.navigatingTo;
+  if (!reportId) return;
+
+  AppUtils.showLoading('Menandai selesai...');
+  try {
+    await window.APP_CONFIG.db.ref(`reports/${reportId}`).update({
+      status: 'done',
+      officerArrived: true,
+      officerArrivedAt: Date.now(),
+      officerNavigating: false,
+      updatedAt: Date.now(),
+    });
+    AppUtils.stopNavigation();
+    AppUtils.hideLoading();
+    AppUtils.showToast('Laporan ditandai selesai! ', 'success');
+    backFromOfficerMap();
+  } catch (err) {
+    AppUtils.hideLoading();
+    AppUtils.showToast('Gagal: ' + err.message, 'error');
+  }
+}
+
+function showPage(id) { AppUtils.showPage(id); }
+
+function openReportDirect() {
+
+  // ambil user yang tersimpan
+  let currentUser = localStorage.getItem('currentUser');
+
+  if (currentUser) {
+
+    AppState.currentUser = JSON.parse(currentUser);
+
+  } else {
+
+    // gunakan guest tetap
+    const guestUser = {
+      uid: 'guest-user',
+      name: localStorage.getItem('guestReporterName') || 'Warga',
+      role: 'user'
+    };
+
+    AppState.currentUser = guestUser;
+
+    localStorage.setItem(
+      'currentUser',
+      JSON.stringify(guestUser)
+    );
+  }
+
+  // buka dashboard
+  AppUtils.showPage('page-user-dashboard');
+
+  // render ulang
+  loadUserReportsRealtime();
+  renderUserStats();
+}
+</script>
+
+<script>
+function toggleTheme() {
+
+  document.body.classList.toggle('light-mode');
+
+  const isLight =
+    document.body.classList.contains('light-mode');
+
+  localStorage.setItem(
+    'theme',
+    isLight ? 'light' : 'dark'
+  );
+
+  // UPDATE ICON
+  document.querySelectorAll('#themeToggleBtn').forEach(btn => {
+    btn.textContent = isLight ? '☀️' : '🌙';
+  });
+}
+
+/* simpan mode */
+document.addEventListener('DOMContentLoaded', () => {
+
+  const savedTheme =
+    localStorage.getItem('theme');
+
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-mode');
+  }
+
+});
+</script>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!--  IMAGE VIEWER FULLSCREEN                                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div id="image-viewer" class="image-viewer" onclick="closeImageViewer()">
+  <span class="image-viewer-close">✕</span>
+  <img id="image-viewer-img" src="" alt="Preview">
+</div>
+
+<script>
+function openImageViewer(src) {
+  const viewer = document.getElementById('image-viewer');
+  const img = document.getElementById('image-viewer-img');
+
+  img.src = src;
+  viewer.classList.add('open');
+}
+
+function closeImageViewer() {
+  document
+    .getElementById('image-viewer')
+    .classList.remove('open');
+}
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR LOGIC
+═══════════════════════════════════════════════════════ */
+function openSidebar(role) {
+  const sidebar  = document.getElementById(role + '-sidebar');
+  const overlay  = document.getElementById(role + '-sidebar-overlay');
+  if (!sidebar || !overlay) return;
+
+  // Update info petugas di sidebar officer
+  const user = AppState?.currentUser;
+  if (role === 'officer') {
+    const nameEl = document.getElementById('sidebar-officer-name');
+    const catEl  = document.getElementById('sidebar-officer-category');
+    if (nameEl && user) nameEl.textContent = user.name || 'Petugas';
+    if (catEl  && user) catEl.textContent  = '🗂️ ' + (user.category || 'Kebersihan');
+    // Update foto profil di sidebar
+    updateOfficerSidebarPhoto(user?.photoUrl);
+  }
+  // Sidebar user: tidak menampilkan nama (semua orang bisa akses)
+
+  updateSidebarThemeBtn();
+  sidebar.classList.add('open');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function updateOfficerSidebarPhoto(photoUrl) {
+  const img   = document.getElementById('officer-sidebar-avatar-img');
+  const emoji = document.getElementById('officer-sidebar-avatar-emoji');
+  if (!img || !emoji) return;
+  if (photoUrl) {
+    img.src = photoUrl;
+    img.style.display = 'block';
+    emoji.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    emoji.style.display = '';
+  }
+}
+
+function triggerOfficerPhotoUpload() {
+  document.getElementById('officer-photo-input')?.click();
+}
+
+function handleOfficerPhotoChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const SIZE = 300;
+      const ratio = Math.min(SIZE / img.width, SIZE / img.height);
+      canvas.width  = img.width  * ratio;
+      canvas.height = img.height * ratio;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const photoUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Simpan ke Firebase
+      const username = AppState.currentUser?.username;
+      if (!username) return;
+      window.APP_CONFIG.db.ref('officers/' + username).update({ photoUrl }).then(() => {
+        // Update state lokal
+        AppState.currentUser.photoUrl = photoUrl;
+        localStorage.setItem('currentUser', JSON.stringify(AppState.currentUser));
+        // Update tampilan avatar di sidebar
+        updateOfficerSidebarPhoto(photoUrl);
+        AppUtils.showToast('✅ Foto profil berhasil diperbarui!', 'success');
+        // Update officerLocations agar warga langsung melihat foto baru
+        if (username) {
+          window.APP_CONFIG.db.ref('officerLocations/' + username).update({ photoUrl });
+        }
+      }).catch(err => {
+        AppUtils.showToast('Gagal menyimpan foto: ' + err.message, 'error');
+      });
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = ''; // reset agar bisa pilih file sama lagi
+}
+
+function closeSidebar(role) {
+  const sidebar = document.getElementById(role + '-sidebar');
+  const overlay = document.getElementById(role + '-sidebar-overlay');
+  if (sidebar) sidebar.classList.remove('open');
+  if (overlay) overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function updateSidebarThemeBtn() {
+  const isLight = document.body.classList.contains('light-mode');
+
+  // Officer sidebar
+  const icon1  = document.getElementById('sidebar-theme-icon');
+  const label1 = document.getElementById('sidebar-theme-label');
+  if (icon1)  icon1.textContent  = isLight ? '☀️' : '🌙';
+  if (label1) label1.textContent = isLight ? 'Mode Terang' : 'Mode Gelap';
+
+  // User sidebar
+  const icon2  = document.getElementById('user-sidebar-theme-icon');
+  const label2 = document.getElementById('user-sidebar-theme-label');
+  if (icon2)  icon2.textContent  = isLight ? '☀️' : '🌙';
+  if (label2) label2.textContent = isLight ? 'Mode Terang' : 'Mode Gelap';
+}
+
+// Tutup sidebar saat tekan Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeSidebar('officer');
+    closeSidebar('user');
+  }
+});
+
+// Sinkron badge tema saat halaman load
+window.addEventListener('DOMContentLoaded', () => {
+  updateSidebarThemeBtn();
+});
+</script>
+
+</body>
+</html>
+
+
